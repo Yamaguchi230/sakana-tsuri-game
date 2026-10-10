@@ -1,0 +1,979 @@
+<title>さかなつり</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap">
+<style>
+  :root{
+    color-scheme: dark;
+    --deep:#04202b; --panel:rgba(4,32,43,.82); --line:rgba(230,244,239,.22);
+    --ink:#e6f4ef; --muted:#9cc7c0; --accent:#ffb37a; --good:#7fd68a; --warn:#f2d15b; --bad:#ff6a5a;
+  }
+  [hidden]{display:none!important}
+  html,body{height:100%}
+  body{background:var(--deep);color:var(--ink);overflow:hidden;user-select:none;-webkit-user-select:none;
+    font-family:"Zen Maru Gothic","Hiragino Maru Gothic ProN","Yu Gothic",sans-serif;touch-action:none}
+  canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+  .top{position:fixed;left:16px;right:16px;top:calc(10px + env(safe-area-inset-top,0px));
+    display:flex;gap:8px;justify-content:space-between;align-items:flex-start;pointer-events:none}
+  .chip{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:6px 12px;
+    display:flex;flex-direction:column;min-width:64px}
+  .chip small{font-size:11px;color:var(--muted);letter-spacing:.08em}
+  .chip b{font-size:22px;font-weight:900;font-variant-numeric:tabular-nums;line-height:1.1}
+  .chip.hurry b{color:var(--bad)}
+  .group{display:flex;gap:8px}
+  .toast{position:fixed;left:50%;top:26%;transform:translate(-50%,-50%);font-size:clamp(22px,5vw,34px);font-weight:900;
+    text-shadow:0 2px 0 rgba(0,0,0,.35),0 0 18px rgba(0,0,0,.35);pointer-events:none;white-space:nowrap;
+    transition:opacity .25s, transform .25s}
+  .toast.hide{opacity:0;transform:translate(-50%,-30%)}
+  .meter{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);
+    width:min(420px,calc(100% - 32px));pointer-events:none;display:flex;flex-direction:column;gap:6px}
+  .meter .lab{display:flex;justify-content:space-between;font-size:13px;color:var(--muted)}
+  .bar{height:16px;border-radius:999px;background:rgba(0,0,0,.45);border:1px solid var(--line);overflow:hidden;position:relative}
+  .bar i{position:absolute;inset:0 auto 0 0;width:0;background:var(--good);border-radius:999px}
+  .bar::after{content:"";position:absolute;left:80%;top:0;bottom:0;width:2px;background:rgba(255,106,90,.8)}
+  .hint{position:fixed;left:16px;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));text-align:center;
+    font-size:14px;color:var(--muted);pointer-events:none}
+  .overlay{position:fixed;inset:0;display:grid;place-items:center;padding:16px;background:rgba(2,16,22,.45)}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:24px 22px;max-height:calc(100% - 8px);overflow-y:auto;
+    width:min(420px,100%);display:flex;flex-direction:column;gap:14px;backdrop-filter:blur(4px)}
+  .card h1{margin:0;font-size:34px;font-weight:900;letter-spacing:.08em;text-wrap:balance}
+  .card p{margin:0;line-height:1.7;color:var(--ink)}
+  .card ol{margin:0;padding-left:1.4em;line-height:1.8;color:var(--ink)}
+  .card .sub{color:var(--muted);font-size:13px}
+  .card button{font:inherit;font-weight:700;font-size:18px;color:#2a1405;background:var(--accent);border:0;border-radius:999px;
+    padding:12px 18px;cursor:pointer}
+  .card button:focus-visible{outline:3px solid var(--ink);outline-offset:3px}
+  .zukan{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;max-height:34vh;overflow-y:auto}
+  .zukan div{display:flex;align-items:center;gap:8px;font-size:14px;background:rgba(0,0,0,.2);border-radius:10px;padding:6px 10px}
+  .zukan span.dot{width:14px;height:14px;border-radius:50%;flex:none}
+  .zukan em{margin-left:auto;font-style:normal;font-variant-numeric:tabular-nums;color:var(--muted)}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+  .row button{flex:1}
+  .card button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+  .wallet{display:flex;justify-content:space-between;align-items:baseline;font-size:14px;color:var(--muted)}
+  .wallet b{font-size:26px;color:var(--accent);font-weight:900;font-variant-numeric:tabular-nums}
+  .shop{display:flex;flex-direction:column;gap:8px;max-height:52vh;overflow-y:auto}
+  .rod{display:grid;grid-template-columns:auto 1fr auto;gap:4px 12px;align-items:center;background:rgba(0,0,0,.22);
+    border:1px solid transparent;border-radius:12px;padding:10px 12px}
+  .rod.on{border-color:var(--accent)}
+  .rod .sw{width:10px;height:38px;border-radius:5px;grid-row:span 2}
+  .rod b{font-size:16px}
+  .rod small{font-size:12px;color:var(--muted);grid-column:2}
+  .rod .stats{grid-column:2;display:flex;gap:10px;font-size:12px;color:var(--ink)}
+  .rod button{grid-row:1/span 4;grid-column:3;font-size:14px;padding:8px 14px;min-width:84px}
+  .card .rod button:disabled{background:rgba(255,255,255,.12);color:var(--muted);cursor:default}
+  .shopchip{pointer-events:auto;font:inherit;color:var(--ink);cursor:pointer;text-align:left}
+  .shopchip b{font-size:15px;line-height:1.5;color:var(--accent);white-space:nowrap}
+  .shopchip:hover{border-color:var(--accent)}
+  .shopchip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .chip b.rodname{font-size:15px;line-height:1.5;white-space:nowrap}
+  @media (max-width:560px){ .chip{min-width:0;padding:5px 10px} .chip b{font-size:18px} .chip.cnt{display:none} }
+  .spbar i{background:linear-gradient(90deg,#ffb37a,#ff6aa8)}
+  .spbar::after{display:none}
+  .spbtn{pointer-events:auto;font:inherit;font-weight:900;font-size:18px;letter-spacing:.1em;border:0;border-radius:999px;
+    padding:10px 16px;color:#2a0a14;background:linear-gradient(90deg,#ffd36a,#ff7aa8);cursor:pointer;
+    box-shadow:0 0 0 0 rgba(255,140,170,.7);animation:pulse 1s infinite}
+  .spbtn:disabled{animation:none;background:rgba(255,255,255,.14);color:var(--muted);cursor:default;font-size:14px;letter-spacing:.04em}
+  .spbtn:focus-visible{outline:3px solid var(--ink);outline-offset:3px}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(255,140,170,.7)}100%{box-shadow:0 0 0 14px rgba(255,140,170,0)}}
+  .cutin{position:fixed;left:0;right:0;top:42%;transform:translateY(-50%);pointer-events:none;
+    padding:14px 16px;text-align:center;background:linear-gradient(90deg,transparent,rgba(0,0,0,.65) 15%,rgba(0,0,0,.65) 85%,transparent);
+    border-block:3px solid var(--spc,#ffb37a)}
+  .cutin small{display:block;font-size:14px;color:var(--muted);letter-spacing:.2em}
+  .cutin b{display:block;font-size:clamp(30px,8vw,56px);font-weight:900;color:var(--spc,#ffb37a);letter-spacing:.08em;
+    text-shadow:0 0 18px var(--spc,#ffb37a)}
+  .cutin span{display:block;font-size:14px;color:var(--ink)}
+  .cutin.go{animation:cut 1.4s ease-out forwards}
+  @keyframes cut{0%{transform:translate(100%,-50%)}14%{transform:translate(0,-50%)}80%{transform:translate(0,-50%);opacity:1}100%{transform:translate(-30%,-50%);opacity:0}}
+  @media (prefers-reduced-motion: reduce){ .cutin.go{animation:none} .spbtn{animation:none} }
+  .stagechip{min-width:120px}
+  .stagechip b{font-size:15px;line-height:1.4;white-space:nowrap}
+  .prog{height:6px;border-radius:999px;background:rgba(0,0,0,.4);overflow:hidden;margin-top:4px}
+  .prog i{display:block;height:100%;width:0;background:var(--accent);border-radius:999px;transition:width .4s}
+  .stagechip span{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;margin-top:2px}
+  @media (max-width:560px){ .chip.rodc{display:none} .stagechip{min-width:96px} }
+  .clearcard h1{color:var(--accent)}
+  .big{font-size:44px;font-weight:900;font-variant-numeric:tabular-nums;line-height:1}
+  .catch{position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);pointer-events:none;
+    background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px 18px;text-align:center;
+    transition:opacity .3s}
+  .catch.hide{opacity:0}
+  .catch b{display:block;font-size:22px}
+  .catch span{font-size:14px;color:var(--muted)}
+  .catch strong{color:var(--accent);font-size:18px}
+</style>
+
+<canvas id="c" aria-label="釣りゲームの画面"></canvas>
+
+<div class="top">
+  <div class="chip"><small>おこづかい</small><b id="score">0</b></div>
+  <div class="group">
+    <div class="chip stagechip"><small id="stageNo">ステージ1</small><b id="stageName">いけ</b><div class="prog"><i id="stageBar"></i></div><span id="stageNum">0 / 100点</span></div>
+    <div class="chip rodc"><small>つりざお</small><b class="rodname" id="rodHud"></b></div>
+    <div class="chip cnt"><small>つれた数</small><b id="count">0</b></div>
+    <button class="chip shopchip" id="shopBtn3" type="button"><small>お店</small><b>つりざお屋</b></button>
+  </div>
+</div>
+<div class="toast hide" id="toast"></div>
+<div class="catch hide" id="catch"></div>
+<div class="hint" id="hint">水の中をタップして、エサを投げよう</div>
+<div class="meter" id="meter" hidden>
+  <div class="lab"><span>糸の張り</span><span>おしっぱなしで巻く／はなすとゆるむ</span></div>
+  <div class="bar"><i id="tbar"></i></div>
+  <div class="lab"><span>水面まで</span><span id="dist"></span></div>
+  <div class="lab"><span>必殺ゲージ</span><span id="spName"></span></div>
+  <div class="bar spbar"><i id="spbar"></i></div>
+  <button class="spbtn" id="spBtn" type="button" disabled>ゲージをためよう</button>
+</div>
+<div class="cutin" id="cutin" hidden><small id="cutRod"></small><b id="cutName"></b><span id="cutDesc"></span></div>
+
+<div class="overlay" id="title">
+  <div class="card">
+    <h1>さかなつり</h1>
+    <ol>
+      <li>水の中をタップすると、そこへエサが沈みます。</li>
+      <li>魚がつつく「ツンツン」ではまだ待つ。</li>
+      <li><b>「！」が出たらすぐタップ</b>して針にかけます。</li>
+      <li>画面をおしっぱなしで巻き上げ。糸の張りが赤くなったら指をはなして休ませます。</li>
+      <li>魚とたたかうと<b>必殺ゲージ</b>がたまります。満タンで「必殺技」ボタン（Sキーでも可）！ 竿ごとに技がちがいます。</li>
+    </ol>
+    <p class="sub">時間制限はありません。<b>ステージのノルマ点数ぶん釣ると、次のステージへ進めます。</b>先のステージほど強い魚が出ます。大きい魚ほど点が高く、力も強いです。とった得点はおこづかいになり、右上の「つりざお屋」でいつでも強い竿が買えます。</p>
+    <div class="zukan" id="zukanTitle"></div>
+    <div class="row"><button id="start" type="button">はじめる</button><button class="ghost" id="shopBtn1" type="button">つりざお屋</button></div>
+    <p class="sub" id="bestTitle"></p>
+    <p class="sub" id="stageTitle"></p>
+  </div>
+</div>
+
+<div class="overlay" id="clearView" hidden>
+  <div class="card clearcard">
+    <h1 id="clearHead">ステージクリア！</h1>
+    <p id="clearText"></p>
+    <p class="wallet"><span>クリアボーナス</span><b id="clearBonus">+0</b></p>
+    <p class="sub" id="clearNext"></p>
+    <button id="clearGo" type="button">つぎのステージへ</button>
+  </div>
+</div>
+
+<div class="overlay" id="shopView" hidden>
+  <div class="card">
+    <h1>つりざお屋</h1>
+    <p class="wallet"><span>おこづかい（得点がたまります）</span><b id="walletS">0</b></p>
+    <div class="shop" id="shopList"></div>
+    <button id="shopClose" type="button">もどる</button>
+  </div>
+</div>
+
+<div class="overlay" id="result" hidden>
+  <div class="card">
+    <h1>しゅうりょう！</h1>
+    <div><span class="sub">とくてん</span><div class="big" id="final">0</div></div>
+    <p class="sub" id="bestResult"></p>
+    <div class="zukan" id="zukanResult"></div>
+    <p id="biggest"></p>
+    <p class="wallet"><span>おこづかいに <span id="earned"></span>点 たまった</span><b id="walletR">0</b></p>
+    <div class="row"><button id="again" type="button">もう一回</button><button class="ghost" id="shopBtn2" type="button">つりざお屋</button></div>
+  </div>
+</div>
+
+<script>
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+let W, H, DPR, SURF, TIP, BOAT;
+function resize(){
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = innerWidth; H = innerHeight;
+  cv.width = W*DPR; cv.height = H*DPR;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  SURF = Math.max(90, H*.16) + (W<560 ? 45 : 0);
+  BOAT = {x: W*.5, y: SURF};
+  TIP = {x: W*.5 + Math.min(110, W*.2), y: SURF - 70};
+  makeWeeds && makeWeeds();
+}
+let makeWeeds = null;
+
+const rand = (a,b)=>a+Math.random()*(b-a);
+const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+const dist = (a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+function angDiff(a,b){ let d=a-b; while(d>Math.PI)d-=Math.PI*2; while(d<-Math.PI)d+=Math.PI*2; return d; }
+
+// 魚の種類：色・大きさ・点数・力・アタリの長さ
+// st=[出てくる最初のステージ, 最後のステージ]
+const KINDS = [
+  {name:'めだかっこ',     st:[1,2],  body:'#d8c890', belly:'#fff8e0', fin:'#b8a060', stripe:null,      len:[32,42],  w:.40, pts:5,   power:.30, win:.80, weight:4},
+  {name:'こあお',         st:[1,2],  body:'#4fc3d9', belly:'#d6f6ff', fin:'#2a90b8', stripe:null,      len:[44,58],  w:.45, pts:10,  power:.45, win:.75, weight:4},
+  {name:'さくらだい',     st:[1,3],  body:'#f29bb0', belly:'#ffe6ec', fin:'#e0718c', stripe:null,      len:[50,66],  w:.62, pts:15,  power:.50, win:.70, weight:3, spots:'#fff4f6'},
+  {name:'きんぎょひめ',   st:[1,3],  body:'#ff5a3a', belly:'#ffd0b0', fin:'#ff8a6a', stripe:null,      len:[48,62],  w:.70, pts:18,  power:.50, win:.70, weight:2.5, tail:1.7},
+  {name:'きいろしま',     st:[1,4],  body:'#f2d15b', belly:'#fff6cf', fin:'#e0a92c', stripe:'#3a3a3a', len:[58,76],  w:.72, pts:20,  power:.65, win:.65, weight:3},
+  {name:'みずたまふぐ',   st:[1,4],  body:'#e8d9a8', belly:'#fffaf0', fin:'#b8a46a', stripe:null,      len:[45,60],  w:.95, pts:25,  power:.55, win:.65, weight:2.2, spots:'#6b5a2e'},
+  {name:'あかしま',       st:[1,4],  body:'#ff8a4c', belly:'#ffd3a8', fin:'#ff6a3d', stripe:'#fff4e8', len:[70,95],  w:.55, pts:30,  power:.85, win:.55, weight:3},
+  {name:'しましまエンゼル', st:[3,5], body:'#f4f0e0', belly:'#ffffff', fin:'#e0d080', stripe:'#2a2a2a', stripes:[1,3,5,7], len:[60,80], w:1.0, pts:40, power:.80, win:.55, weight:1.6, tail:1.3},
+  {name:'しまあじろう',   st:[2,5],  body:'#3aa8a0', belly:'#e0fbf6', fin:'#1f7a74', stripe:'#f4fff9', stripes:[2,4,6], len:[80,105], w:.48, pts:45, power:1.0, win:.50, weight:1.8},
+  {name:'ながれなまず',   st:[2,4],  body:'#6a6a5a', belly:'#c8c0a0', fin:'#4a4a3a', stripe:null,      len:[90,120], w:.45, pts:55,  power:1.10, win:.48, weight:1.5, whisker:true},
+  {name:'ぎんたろう',     st:[2,5],  body:'#c9d6df', belly:'#f4f8fb', fin:'#8fa6b5', stripe:null,      len:[95,125], w:.40, pts:60,  power:1.2, win:.45, weight:1.5},
+  {name:'ふぐまる',       st:[4,7],  body:'#e8c050', belly:'#fff4d0', fin:'#c09030', stripe:null,      len:[70,95],  w:1.05, pts:70, power:1.10, win:.45, weight:1.3, spots:'#704020'},
+  {name:'よるのうお',     st:[3,6],  body:'#1c2a5c', belly:'#5a6db0', fin:'#121c40', stripe:null,      len:[90,120], w:.52, pts:80,  power:1.35, win:.42, weight:1.2, spots:'#bff6ff', glow:'rgba(120,220,255,.45)'},
+  // ここから強い魚（数が少なく、大きくて引きが強い）
+  {name:'みどりおおうお', st:[3,8],  body:'#4f9a5a', belly:'#dcefc8', fin:'#2f6d3c', stripe:'#a8d98a', len:[110,140], w:.50, pts:100, power:1.55, win:.40, weight:1.1},
+  {name:'くろまぐろう',   st:[4,9],  body:'#27415e', belly:'#c9d8e6', fin:'#16283c', stripe:null,      len:[130,165], w:.42, pts:160, power:1.9,  win:.36, weight:.75},
+  {name:'ちょうちんあんこう', st:[5,9], body:'#5a4252', belly:'#8a6a78', fin:'#3a2634', stripe:null,    len:[100,130], w:.70, pts:220, power:2.0,  win:.36, weight:.6, lantern:true},
+  {name:'べにりゅう',     st:[4,10], body:'#c8323c', belly:'#ffd9c9', fin:'#8e1b2a', stripe:'#ffd45a', len:[150,190], w:.38, pts:260, power:2.3,  win:.32, weight:.45, glow:'rgba(255,90,80,.55)'},
+  {name:'こおりのきば',   st:[7,10], body:'#b8d8ea', belly:'#ffffff', fin:'#7ab0d0', stripe:null,      len:[170,220], w:.36, pts:350, power:2.5,  win:.30, weight:.35, glow:'rgba(200,240,255,.6)'},
+  {name:'ほのおうお',     st:[8,11], body:'#ff6a1a', belly:'#ffd060', fin:'#c02a10', stripe:'#ffe080', len:[150,190], w:.45, pts:420, power:2.6,  win:.30, weight:.35, glow:'rgba(255,120,40,.7)'},
+  {name:'にじのぬし',     st:[5,11], body:'#7b5cd6', belly:'#ffe2f4', fin:'#3fc4c9', stripe:'#ffe066', len:[185,235], w:.44, pts:500, power:2.8,  win:.28, weight:.18, glow:'rgba(255,230,120,.8)'},
+  {name:'ほしくずうお',   st:[9,12], body:'#1a2050', belly:'#3a4090', fin:'#6a70d0', stripe:null,      len:[160,200], w:.50, pts:700, power:3.0,  win:.27, weight:.12, spots:'#fff8c0', glow:'rgba(180,200,255,.8)'},
+  // 伝説の魚（強い竿でないとまず釣れない）
+  {name:'りゅうおう',     st:[6,12], body:'#2f7d5b', belly:'#f3e08a', fin:'#d8a42a', stripe:'#f3c64a', stripes:[2,4,6], len:[215,265], w:.40, pts:900,  power:3.4, win:.25, weight:.08, glow:'rgba(250,210,90,.85)', spots:'#ffe9a0'},
+  {name:'てんくうりゅう', st:[10,12], body:'#f0f0ff', belly:'#ffd8f0', fin:'#9ad0ff', stripe:'#ffc0e0', stripes:[2,4,6], len:[230,280], w:.38, pts:1200, power:3.7, win:.24, weight:.05, glow:'rgba(255,200,240,.8)'},
+  {name:'まぼろしのうお', st:[7,12], body:'#bfeff5', belly:'#ffffff', fin:'#8fe3f0', stripe:null,      len:[200,250], w:.46, pts:1500, power:4.0, win:.22, weight:.04, glow:'rgba(200,250,255,.95)', alpha:.72},
+  {name:'かみさまうお',   st:[12,12], body:'#ffd860', belly:'#fff8e0', fin:'#fff0a0', stripe:'#ffffff', len:[260,310], w:.42, pts:3000, power:4.6, win:.20, weight:.02, glow:'rgba(255,240,160,1)'},
+];
+// ステージ：goal=次へ進むのに必要な点数 kinds=出てくる魚（KINDSの番号の範囲） 色=背景
+const STAGES = [
+  {name:'いけ',         goal:100,  kinds:[0,4],  sky:['#a6dccb','#e6f4e8'], water:['#3c8f6e','#1d5c4a','#0b2e25'], wave:'#4a9c7a', sand:'#7d6a45', weed:['#2f7a3a','#4a9a48']},
+  {name:'かわ',         goal:250,  kinds:[0,6],  sky:['#8fcfe8','#e2f2f7'], water:['#3b9bb0','#1b5f75','#0a2d3b'], wave:'#4bb0c0', sand:'#a39478', weed:['#2c7a50','#3f9460']},
+  {name:'みずうみ',     goal:500,  kinds:[1,8],  sky:['#a9c6e8','#eef0f6'], water:['#2f7aa0','#164a6b','#071f33'], wave:'#3e8fb4', sand:'#8f8466', weed:['#2a6e55','#3a8a63']},
+  {name:'うみ',         goal:1000, kinds:[2,10], sky:['#8fcfd6','#d9efe9'], water:['#1d7a7f','#0b4552','#04202b'], wave:'#2a8c8e', sand:'#b99a6b', weed:['#1f6b4a','#2c8a5a']},
+  {name:'しんかい',     goal:2000, kinds:[5,11], sky:['#1c2744','#3e4c70'], water:['#123a5a','#0a1f38','#02070f'], wave:'#1f4f70', sand:'#3a3550', weed:['#3a2f6a','#5a3f8a']},
+  {name:'りゅうのうみ', goal:4000, kinds:[7,12], sky:['#e88a5c','#f8d9a8'], water:['#2a6f78','#143f4f','#061a22'], wave:'#3f8f90', sand:'#9a7a50', weed:['#7a3a2a','#a0552f']},
+  {name:'まぼろしのうみ', goal:8000, kinds:[8,13], sky:['#3a2a6a','#9a7ac8'], water:['#4a3f8a','#22205a','#0a0828'], wave:'#6a5ab0', sand:'#5a4a7a', weed:['#2a8a8a','#4ac0b0'], deco:'stars'},
+  // ここから上級ステージ：power=魚の力の倍率 bonus=点数の倍率
+  {name:'こおりのうみ',     goal:12000, kinds:[8,13],  power:1.15, bonus:1.2, sky:['#cfe6f5','#f4fbff'], water:['#7fbcd6','#3a7896','#0e2c40'], wave:'#a8d8ea', sand:'#d8e4ea', weed:['#5a9ab0','#8ac0d0'], deco:'ice'},
+  {name:'かざんのうみ',     goal:18000, kinds:[9,13],  power:1.30, bonus:1.4, sky:['#5a1e14','#d0602a'], water:['#7a3a24','#3e1a14','#120604'], wave:'#b0502a', sand:'#2a1a18', weed:['#5a2a20','#8a3a24'], deco:'lava'},
+  {name:'ほしぞらのうみ',   goal:26000, kinds:[10,13], power:1.45, bonus:1.6, sky:['#060a24','#202a5c'], water:['#18205a','#0c1036','#020414'], wave:'#2a3478', sand:'#262a48', weed:['#3a4aa0','#6a5ac0'], deco:'stars'},
+  {name:'くものうえのうみ', goal:36000, kinds:[11,13], power:1.60, bonus:1.8, sky:['#ffb9c8','#fff2e0'], water:['#9fd0e8','#5a96c0','#203c6a'], wave:'#c8e8f4', sand:'#f0e6d2', weed:['#e09ab0','#f0c0a0'], deco:'clouds'},
+  {name:'かみさまのいけ',   goal:50000, kinds:[12,13], power:1.80, bonus:2.2, sky:['#f6d77a','#fff8dc'], water:['#e8c860','#a07a2a','#3a2808'], wave:'#ffe9a0', sand:'#fff0c0', weed:['#c0a040','#f0d070'], deco:'stars'},
+];
+let stage = 0, stagePts = 0, allClear = false;
+try{
+  stage = clamp(+localStorage.getItem('tsuri-stage') || 0, 0, STAGES.length-1);
+  stagePts = +localStorage.getItem('tsuri-stagepts') || 0;
+  allClear = localStorage.getItem('tsuri-allclear') === '1';
+  if(stage < STAGES.length-1) allClear = false;  // ステージが増えたら続きから遊べるように
+}catch(e){}
+const ST = () => STAGES[stage];
+function saveStage(){
+  try{ localStorage.setItem('tsuri-stage', stage); localStorage.setItem('tsuri-stagepts', stagePts); localStorage.setItem('tsuri-allclear', allClear?'1':'0'); }catch(e){}
+}
+function pickKind(){
+  // 強い竿ほど、めずらしい魚（100点以上）が出やすくなる
+  const wt = k => k.weight * (k.pts>=100 ? rod().luck : 1);
+  const n = stage+1, list = KINDS.filter(k => k.st[0] <= n && n <= k.st[1]);
+  const tot = list.reduce((s,k)=>s+wt(k),0); let r = Math.random()*tot;
+  for(const k of list){ if((r-=wt(k))<0) return k; } return list[0];
+}
+
+class Fish{
+  constructor(x,y,a){
+    this.k = pickKind();
+    this.len = rand(...this.k.len);
+    this.x = x ?? rand(40,W-40); this.y = y ?? rand(SURF+80,H-90);
+    this.a = a ?? rand(0,Math.PI*2);
+    this.speed = rand(.6,1.1) * (40/this.len) ** .3;
+    this.phase = rand(0,10); this.turn = 0; this.seg = 10;
+    this.flee = 0; this.mode = 'swim'; // swim | seek | nibble | hooked | lift
+    this.spine = Array.from({length:this.seg},(_,i)=>({x:this.x - Math.cos(this.a)*i*this.len/this.seg, y:this.y - Math.sin(this.a)*i*this.len/this.seg}));
+  }
+  get cm(){ return Math.round(this.len/2.4); }
+  steer(ta, k){ this.a += angDiff(ta,this.a)*k; }
+  update(dt, fishes){
+    let spd = this.speed;
+    if(this.mode==='hooked' || this.mode==='lift'){
+      this.phase += dt*(this.mode==='lift'?22:18);
+      this.follow(); return;
+    }
+    if(this.flee>0){
+      this.flee -= dt; spd *= 2.4;
+      this.steer(Math.atan2(this.y-hook.y, this.x-hook.x), .08);
+    } else if(this.mode==='seek'){
+      this.steer(Math.atan2(hook.y-this.y, hook.x-this.x), .1);
+      spd *= 1.2;
+      if(dist(this,hook) < 10){ this.mode='nibble'; }
+    } else if(this.mode==='nibble'){
+      this.steer(Math.atan2(hook.y-this.y, hook.x-this.x), .2);
+      spd = 0; this.x += (hook.x-this.x)*.3; this.y += (hook.y-this.y)*.3;
+    } else {
+      this.turn += rand(-.02,.02); this.turn *= .96; this.a += this.turn;
+      let ax=0, ay=0, n=0;
+      for(const o of fishes){ if(o===this||o.mode!=='swim') continue;
+        const dx=o.x-this.x, dy=o.y-this.y, d2=dx*dx+dy*dy;
+        if(d2<120*120){ ax+=Math.cos(o.a); ay+=Math.sin(o.a); n++; }
+        if(d2<(this.len*.9)**2) this.steer(Math.atan2(-dy,-dx), .03);
+      }
+      if(n) this.steer(Math.atan2(ay,ax), .015);
+    }
+    const m = 60;
+    if(this.x < m) this.steer(0,.05); else if(this.x > W-m) this.steer(Math.PI,.05);
+    if(this.y < SURF+m) this.steer(Math.PI/2,.06); else if(this.y > H-m-30) this.steer(-Math.PI/2,.05);
+    const v = spd*dt*60;
+    this.x += Math.cos(this.a)*v; this.y += Math.sin(this.a)*v;
+    this.phase += dt*(6 + spd*6)*this.speed + (this.mode==='nibble'?dt*4:0);
+    this.follow();
+  }
+  follow(){
+    const s = this.spine, L = this.len/this.seg;
+    s[0].x = this.x; s[0].y = this.y;
+    if(this.mode==='hooked'||this.mode==='lift'){
+      // 口に針がかかっているので、頭の向きに体を引っぱる
+      const bx = this.x - Math.cos(this.a)*L, by = this.y - Math.sin(this.a)*L;
+      s[1].x += (bx-s[1].x)*.5; s[1].y += (by-s[1].y)*.5;
+    }
+    const amp = (this.mode==='hooked'||this.mode==='lift') ? .02 : .007;
+    let prev = this.a + Math.PI;
+    for(let i=1;i<s.length;i++){
+      const p=s[i-1], q=s[i];
+      let ang = Math.atan2(q.y-p.y, q.x-p.x) + Math.sin(this.phase - i*.7)*i*amp;
+      // 体が折れ曲がらないよう、となりの節との角度を制限する
+      const d = clamp(angDiff(ang, prev), -.28, .28);
+      ang = prev + d; prev = ang;
+      q.x = p.x + Math.cos(ang)*L; q.y = p.y + Math.sin(ang)*L;
+    }
+  }
+  draw(){
+    const s = this.spine, k = this.k, n = s.length, ba = k.alpha || 1;
+    ctx.save(); ctx.globalAlpha = ba;
+    const width = i => { const t=i/(n-1); return this.len*k.w*Math.sin(Math.PI*Math.min(1,(t*.92+.08)))*(1-t*.55)*.5; };
+    const left=[], right=[];
+    for(let i=0;i<n;i++){
+      const p=s[i], q=s[Math.min(i+1,n-1)], r=s[Math.max(i-1,0)];
+      const ang = Math.atan2(r.y-q.y, r.x-q.x); const w = width(i);
+      left.push({x:p.x+Math.cos(ang+Math.PI/2)*w, y:p.y+Math.sin(ang+Math.PI/2)*w});
+      right.push({x:p.x+Math.cos(ang-Math.PI/2)*w, y:p.y+Math.sin(ang-Math.PI/2)*w});
+    }
+    const tail = s[n-1], pre = s[n-2];
+    const ta = Math.atan2(tail.y-pre.y, tail.x-pre.x), tl = this.len*.32*(k.tail||1);
+    if(this.mode!=='lift'){
+      ctx.save(); ctx.globalAlpha=.16; ctx.fillStyle='#000';
+      ctx.beginPath(); ctx.ellipse(this.x+6, this.y+18, this.len*.35, this.len*.08, this.a,0,Math.PI*2); ctx.fill(); ctx.restore();
+    }
+    ctx.fillStyle = k.fin;
+    ctx.beginPath(); ctx.moveTo(tail.x,tail.y);
+    ctx.quadraticCurveTo(tail.x+Math.cos(ta+.3)*tl*.6, tail.y+Math.sin(ta+.3)*tl*.6, tail.x+Math.cos(ta+.55)*tl, tail.y+Math.sin(ta+.55)*tl);
+    ctx.quadraticCurveTo(tail.x+Math.cos(ta)*tl*.55, tail.y+Math.sin(ta)*tl*.55, tail.x+Math.cos(ta-.55)*tl, tail.y+Math.sin(ta-.55)*tl);
+    ctx.quadraticCurveTo(tail.x+Math.cos(ta-.3)*tl*.6, tail.y+Math.sin(ta-.3)*tl*.6, tail.x, tail.y);
+    ctx.fill();
+    const fp = s[2], fa = Math.atan2(s[1].y-s[3].y, s[1].x-s[3].x), flap = Math.sin(this.phase*1.3)*.35;
+    for(const side of [1,-1]){
+      const bx = fp.x+Math.cos(fa+side*Math.PI/2)*width(2)*.8, by = fp.y+Math.sin(fa+side*Math.PI/2)*width(2)*.8;
+      const ea = fa+Math.PI - side*(.9+flap);
+      ctx.beginPath(); ctx.moveTo(bx,by);
+      ctx.quadraticCurveTo(bx+Math.cos(ea+side*.4)*this.len*.12, by+Math.sin(ea+side*.4)*this.len*.12, bx+Math.cos(ea)*this.len*.14, by+Math.sin(ea)*this.len*.14);
+      ctx.lineTo(bx+Math.cos(fa+Math.PI)*this.len*.08, by+Math.sin(fa+Math.PI)*this.len*.08);
+      ctx.globalAlpha=.85*ba; ctx.fill(); ctx.globalAlpha=ba;
+    }
+    const g = ctx.createLinearGradient(left[3].x,left[3].y,right[3].x,right[3].y);
+    g.addColorStop(0,k.body); g.addColorStop(.55,k.body); g.addColorStop(1,k.belly);
+    ctx.fillStyle = g;
+    if(k.glow){ ctx.shadowColor = k.glow; ctx.shadowBlur = 14 + Math.sin(this.phase*.5)*6; }
+    ctx.beginPath();
+    const head = s[0], ha = Math.atan2(s[0].y-s[1].y, s[0].x-s[1].x);
+    ctx.moveTo(left[0].x,left[0].y);
+    for(let i=1;i<n;i++) ctx.lineTo(left[i].x,left[i].y);
+    for(let i=n-1;i>=0;i--) ctx.lineTo(right[i].x,right[i].y);
+    ctx.quadraticCurveTo(head.x+Math.cos(ha)*this.len*.14, head.y+Math.sin(ha)*this.len*.14, left[0].x,left[0].y);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    if(k.stripe){
+      ctx.strokeStyle = k.stripe; ctx.lineWidth = this.len*.05; ctx.lineCap='round';
+      for(const i of (k.stripes||[2,5])){ ctx.beginPath(); ctx.moveTo(left[i].x,left[i].y); ctx.lineTo(right[i].x,right[i].y); ctx.stroke(); }
+    }
+    if(k.spots){
+      // 水玉もよう
+      ctx.fillStyle = k.spots;
+      for(let i=2;i<=6;i++) for(const f of [.45,-.15]){
+        const x = s[i].x + (left[i].x-s[i].x)*f + (i%2?1:-1)*this.len*.01, y = s[i].y + (left[i].y-s[i].y)*f;
+        ctx.beginPath(); ctx.arc(x,y,this.len*.028,0,Math.PI*2); ctx.fill();
+      }
+    }
+    const ex = head.x+Math.cos(ha)*this.len*.02, ey = head.y+Math.sin(ha)*this.len*.02;
+    for(const side of [1,-1]){
+      const px = ex+Math.cos(ha+side*Math.PI/2)*width(0)*.9, py = ey+Math.sin(ha+side*Math.PI/2)*width(0)*.9;
+      ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(px,py,this.len*.045,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='#10202a'; ctx.beginPath(); ctx.arc(px+Math.cos(ha)*this.len*.012,py+Math.sin(ha)*this.len*.012,this.len*.026,0,Math.PI*2); ctx.fill();
+    }
+    // ひげ（なまず）
+    if(k.whisker){
+      ctx.strokeStyle = k.fin; ctx.lineWidth = Math.max(1.2,this.len*.012); ctx.lineCap='round';
+      for(const side of [1,-1]){ const bx=head.x+Math.cos(ha)*this.len*.08, by=head.y+Math.sin(ha)*this.len*.08, sw=Math.sin(this.phase*.8+side)*.25;
+        ctx.beginPath(); ctx.moveTo(bx,by);
+        ctx.quadraticCurveTo(bx+Math.cos(ha+side*.9)*this.len*.18, by+Math.sin(ha+side*.9)*this.len*.18, bx+Math.cos(ha+side*(1.6+sw))*this.len*.3, by+Math.sin(ha+side*(1.6+sw))*this.len*.3); ctx.stroke(); }
+    }
+    // ちょうちん（あんこう）
+    if(k.lantern){
+      const bx=head.x-Math.cos(ha)*this.len*.05, by=head.y-Math.sin(ha)*this.len*.05;
+      // 光る玉はいつも頭の上の前方にぶら下がる
+      const lx=bx+Math.cos(ha)*this.len*.22, ly=by-this.len*.22 + Math.sin(this.phase*.7)*3;
+      ctx.strokeStyle='#a08898'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(bx,by); ctx.quadraticCurveTo(bx+Math.cos(ha)*this.len*.05, by-this.len*.34, lx, ly); ctx.stroke();
+      ctx.shadowColor='rgba(255,250,170,1)'; ctx.shadowBlur=20; ctx.fillStyle='#fff6a8';
+      ctx.beginPath(); ctx.arc(lx,ly,this.len*.05*(1+.15*Math.sin(this.phase)),0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
+    }
+    ctx.restore();
+  }
+}
+
+class Bubble{
+  constructor(x,y){ this.reset(x,y); }
+  reset(x,y){ this.x=x??rand(0,W); this.y=y??H+rand(0,H); this.r=rand(1.5,4.5); this.vy=rand(.4,1.1); this.ph=rand(0,6); }
+  update(dt){ this.y -= this.vy*dt*60*(1+this.r*.1); this.ph+=dt*2; this.x += Math.sin(this.ph)*.3; if(this.y<SURF) this.reset(); }
+  draw(){ ctx.strokeStyle='rgba(220,250,255,.5)'; ctx.lineWidth=1; ctx.beginPath(); ctx.arc(this.x,this.y,this.r,0,Math.PI*2); ctx.stroke(); }
+}
+
+const weeds = [], deco = [];
+makeWeeds = function(){
+  weeds.length=0;
+  const count = Math.max(6, Math.round(W/70));
+  for(let i=0;i<count;i++) weeds.push({x:rand(0,W), h:rand(60,Math.min(200,H*.3)), ph:rand(0,6), c:Math.random()<.5?0:1, w:rand(5,9)});
+  deco.length = 0;
+  for(let i=0;i<60;i++) deco.push({x:rand(0,W), y:rand(0,1), r:rand(.6,1.8), ph:rand(0,6), s:rand(.3,1)});
+};
+addEventListener('resize', resize); resize();
+
+// ---------- ゲームの状態 ----------
+const GAME_TIME = 90;
+// つりざお：tension=糸の張りやすさ（小さいほど切れにくい） reel=巻く速さ win=「！」の時間の追加(秒) lure=魚を寄せる力
+const RODS = [
+  {id:'take',   name:'たけざお',       price:0,     color:'#5b3a1e', tension:1.00, reel:1.00, win:0,   lure:1.00, luck:1.0, note:'はじめから持っている竿',
+    sp:{cd:20, name:'たけのしなり',     desc:'糸の張りが0にもどる',               fx:{reset:1}}},
+  {id:'glass',  name:'グラスざお',     price:150,   color:'#2f8f6b', tension:0.80, reel:1.15, win:.05, lure:1.10, luck:1.0, note:'糸が少し切れにくい',
+    sp:{cd:22, name:'すきとおる糸',     desc:'4秒間、糸がぜったい切れない',       fx:{guard:4}}},
+  {id:'carbon', name:'カーボンざお',   price:400,   color:'#2b3440', tension:0.65, reel:1.30, win:.12, lure:1.25, luck:1.1, note:'軽くて巻くのが速い',
+    sp:{cd:25, name:'カーボン一本釣り', desc:'魚をぐいっと引きよせる',            fx:{yank:140, reset:.5}}},
+  {id:'gold',   name:'きんのさお',     price:900,   color:'#d9a92b', tension:0.52, reel:1.45, win:.20, lure:1.45, luck:1.2, note:'魚がよく寄ってくる',
+    sp:{cd:28, name:'黄金のひかり',     desc:'魚がまぶしくて3秒動けない',         fx:{stun:3}}},
+  {id:'legend', name:'でんせつのさお', price:1800,  color:'#c2477a', tension:0.40, reel:1.65, win:.30, lure:1.70, luck:1.4, note:'にじのぬしにも負けない',
+    sp:{cd:30, name:'でんせつの一撃',   desc:'魚をしびれさせて引きよせる',        fx:{stun:2.5, yank:120}}},
+  {id:'kaze',   name:'かぜのさお',     price:3000,  color:'#7fd3c4', tension:0.34, reel:1.85, win:.35, lure:1.85, luck:1.6, note:'風のように速く巻ける',
+    sp:{cd:32, name:'つむじ風',         desc:'4秒間、ものすごい速さで巻ける',     fx:{wind:4, reset:1}}},
+  {id:'ryu',    name:'りゅうのさお',   price:5000,  color:'#3e8f5e', tension:0.28, reel:2.00, win:.42, lure:2.05, luck:1.9, note:'りゅうおうと戦える',
+    sp:{cd:36, name:'りゅうの咆哮',     desc:'張りを0にして、魚を4秒しびれさせる', fx:{reset:1, stun:4, yank:80}}},
+  {id:'hoshi',  name:'ほしのさお',     price:8000,  color:'#4b4fbf', tension:0.22, reel:2.20, win:.50, lure:2.35, luck:2.4, note:'めずらしい魚がよく出る',
+    sp:{cd:40, name:'ながれぼし',       desc:'大きく引きよせて、点数2倍',         fx:{yank:260, reset:1, mult:2}}},
+  {id:'kami',   name:'かみのさお',     price:15000, color:'#f5f0d0', tension:0.16, reel:2.50, win:.60, lure:2.80, luck:3.0, note:'まぼろしのうおも釣れる',
+    sp:{cd:50, name:'かみの一本釣り',   desc:'一瞬で釣り上げて、点数3倍',         fx:{land:1, mult:3}}},
+  // ここから上級ステージ向けの竿
+  {id:'umi',      name:'うみなりのさお', price:25000,  color:'#2a6fb0', tension:0.13, reel:2.70, win:.65, lure:3.00, luck:3.4, note:'海の力で魚をよせる',
+    sp:{cd:40, name:'うずしお',         desc:'魚を3秒しびれさせて、大きく引きよせる', fx:{stun:3, yank:200, reset:1}}},
+  {id:'hono',     name:'ほのおのさお',   price:40000,  color:'#e0502a', tension:0.11, reel:2.90, win:.70, lure:3.20, luck:3.8, note:'かざんのうみでも負けない',
+    sp:{cd:45, name:'ほのおの竜巻',     desc:'5秒間、糸が切れず、ものすごい速さで巻ける', fx:{wind:5, guard:5, reset:1}}},
+  {id:'niji',     name:'にじのさお',     price:60000,  color:'#b06ad8', tension:0.09, reel:3.10, win:.75, lure:3.50, luck:4.3, note:'にじ色の魚がよく出る',
+    sp:{cd:50, name:'にじのかけはし',   desc:'ぐーんと引きよせて、点数3倍',       fx:{yank:300, reset:1, mult:3}}},
+  {id:'tenkuu',   name:'てんくうのさお', price:90000,  color:'#9ad0ff', tension:0.07, reel:3.40, win:.85, lure:3.80, luck:5.0, note:'てんくうりゅうと戦える',
+    sp:{cd:55, name:'てんくうの雷',     desc:'5秒しびれて糸も切れない、点数2倍', fx:{stun:5, guard:5, mult:2}}},
+  {id:'kamisama', name:'かみさまのさお', price:150000, color:'#ffd860', tension:0.05, reel:3.80, win:1.0, lure:4.20, luck:6.0, note:'かみさまうおも釣れる、さいきょうの竿',
+    sp:{cd:60, name:'かみさまの奇跡',   desc:'一瞬で釣り上げて、点数5倍',         fx:{land:1, mult:5}}},
+];
+// 必殺技の状態
+const SP = {cd:0, gauge:0, stun:0, guard:0, wind:0, mult:1, fx:0, fxColor:'#fff', fxName:''};
+let wallet = 0, owned = ['take'], rodId = 'take';
+try{
+  wallet = +localStorage.getItem('tsuri-wallet') || 0;
+  owned = JSON.parse(localStorage.getItem('tsuri-owned') || '["take"]');
+  rodId = localStorage.getItem('tsuri-rod') || 'take';
+}catch(e){}
+if(!owned.includes('take')) owned.unshift('take');
+if(!owned.includes(rodId)) rodId = 'take';
+const rod = () => RODS.find(r=>r.id===rodId) || RODS[0];
+function saveShop(){
+  try{ localStorage.setItem('tsuri-wallet', wallet); localStorage.setItem('tsuri-owned', JSON.stringify(owned)); localStorage.setItem('tsuri-rod', rodId); }catch(e){}
+}
+const hook = {x:0,y:0, sx:0,sy:0, tx:0,ty:0, t:0, jig:0};
+const ripples = [];
+let fishes = [], bubbles = [];
+let state = 'title';   // title | idle | cast | wait | bite | hooked | lift | reel | over
+let target = null, nibbles = 0, nibbleT = 0, biteT = 0, attractT = 0;
+let tension = 0, reeling = false, escA = 0, struggleT = 0, burst = 0, calm = 0;
+let score = 0, timeLeft = GAME_TIME, caught = [], lastTime = performance.now();
+let best = 0;
+try{ best = +localStorage.getItem('tsuri-best') || 0; }catch(e){}
+
+const $ = id => document.getElementById(id);
+const toastEl = $('toast'), hintEl = $('hint'), meterEl = $('meter'), tbar = $('tbar'), catchEl = $('catch');
+let toastTimer = 0, catchTimer = 0;
+function toast(msg, color, sec=1.2){ toastEl.textContent = msg; toastEl.style.color = color || 'var(--ink)'; toastEl.classList.remove('hide'); toastTimer = sec; }
+function hint(msg){ hintEl.textContent = msg; hintEl.hidden = !msg; }
+
+function populate(){
+  const n = fishTarget();
+  fishes = Array.from({length:n}, ()=>new Fish());
+  bubbles = Array.from({length:30}, ()=>new Bubble(undefined, rand(SURF,H)));
+}
+function spawnFish(){
+  const left = Math.random()<.5;
+  fishes.push(new Fish(left?-40:W+40, rand(SURF+100,H-100), left?0:Math.PI));
+}
+// 泳いでいる魚の数（画面の広さに合わせた数 ＋ 5）
+const EXTRA_FISH = 5;
+function fishTarget(){ return clamp(Math.round(W*H/80000), 7, 12) + EXTRA_FISH; }
+
+function renderZukan(el){
+  el.innerHTML = KINDS.map(k=>{
+    const n = caught.filter(c=>c.k===k).length;
+    return `<div><span class="dot" style="background:${k.body}"></span>${k.name}<em>${state==='title'?k.pts+'点〜':n+'ひき'}</em></div>`;
+  }).join('');
+}
+function startGame(){
+  score = 0; timeLeft = GAME_TIME; caught = [];
+  populate(); state = 'idle'; resetHook();
+  $('title').hidden = true; $('result').hidden = true; $('shopView').hidden = true;
+  $('rodHud').textContent = rod().name;
+  updateHud(); hint('水の中をタップして、エサを投げよう');
+}
+function endGame(){
+  release(false); state = 'over'; reeling = false; resetHook(); meterEl.hidden = true; hint('');
+  wallet += score; saveShop();
+  $('earned').textContent = score; $('walletR').textContent = wallet;
+  if(score > best){ best = score; try{ localStorage.setItem('tsuri-best', best); }catch(e){} $('bestResult').textContent = 'ハイスコア更新！'; }
+  else $('bestResult').textContent = `ハイスコア ${best}点`;
+  $('final').textContent = score;
+  renderZukan($('zukanResult'));
+  const big = caught.slice().sort((a,b)=>b.cm-a.cm)[0];
+  $('biggest').textContent = big ? `いちばん大きかったのは ${big.k.name} ${big.cm}cm` : 'つぎは「！」が出たらすぐタップしてみよう。';
+  $('result').hidden = false;
+}
+function updateStageHud(){
+  const S = ST();
+  $('stageNo').textContent = `ステージ${stage+1}` + (allClear && stage===STAGES.length-1 ? '（クリア済み）' : '');
+  $('stageName').textContent = S.name;
+  $('stageNum').textContent = `${Math.min(stagePts,S.goal)} / ${S.goal}点`;
+  $('stageBar').style.width = Math.min(100, stagePts/S.goal*100) + '%';
+  $('stageTitle').textContent = `いまのステージ：${stage+1}「${S.name}」 ノルマ ${S.goal}点（あと ${Math.max(0,S.goal-stagePts)}点）`;
+}
+function checkStage(){
+  const S = ST();
+  if(stagePts < S.goal || (allClear && stage===STAGES.length-1)) return;
+  const bonus = Math.round(S.goal*.2);
+  wallet += bonus; saveShop();
+  state = 'clear'; reeling = false;
+  $('clearBonus').textContent = '+' + bonus;
+  if(stage < STAGES.length-1){
+    const N = STAGES[stage+1];
+    $('clearHead').textContent = 'ステージクリア！';
+    $('clearText').textContent = `「${S.name}」で ${S.goal}点 釣りました。`;
+    $('clearNext').textContent = `つぎは ステージ${stage+2}「${N.name}」。ノルマは ${N.goal}点。もっと強い魚が出てきます。` + (N.power ? `（魚の力 ×${N.power}・点数 ×${N.bonus}）` : '');
+    $('clearGo').textContent = 'つぎのステージへ';
+  } else {
+    allClear = true; saveStage();
+    $('clearHead').textContent = 'ぜんぶクリア！';
+    $('clearText').textContent = `さいごの「${S.name}」までクリアしました。おめでとう！`;
+    $('clearNext').textContent = 'このあとも、このステージで好きなだけ釣りを続けられます。';
+    $('clearGo').textContent = 'つりを続ける';
+  }
+  $('clearView').hidden = false;
+}
+$('clearGo').onclick = ()=>{
+  $('clearView').hidden = true;
+  if(stage < STAGES.length-1 && !(allClear && stage===STAGES.length-1)){
+    stage++; stagePts = 0; saveStage();
+    makeWeeds(); populate(); resetHook();
+    toast(`ステージ${stage+1}「${ST().name}」`, 'var(--accent)', 1.8);
+  }
+  state = 'idle'; hint('水の中をタップして、エサを投げよう'); updateHud();
+};
+function updateHud(){
+  updateStageHud();
+  $('score').textContent = wallet;
+  $('count').textContent = caught.length;
+
+}
+function resetHook(){ hook.x = TIP.x; hook.y = TIP.y; }
+
+function release(scare){
+  if(target){ target.mode='swim'; if(scare) target.flee = 4; }
+  target = null; nibbles = 0;
+}
+
+// ---------- 操作 ----------
+function press(x,y){
+  if(state==='idle'){
+    if(y < SURF+20) { toast('水の中をタップしてね', 'var(--muted)', .9); return; }
+    state='cast'; hook.sx=TIP.x; hook.sy=TIP.y; hook.tx=x; hook.ty=clamp(y, SURF+50, H-70); hook.t=0; hook.splash=false;
+    hint('');
+  } else if(state==='wait'){
+    if(target && target.mode==='nibble'){ release(true); toast('はやすぎ！', 'var(--warn)'); }
+    else { release(false); state='reel'; hint(''); }
+  } else if(state==='bite'){
+    state='hooked'; target.mode='hooked'; tension = 15; reeling = true;
+    SP.mult = 1; SP.stun = SP.guard = SP.wind = 0;
+    escA = Math.atan2(target.y - TIP.y, target.x - TIP.x) + rand(-.6,.6);
+    struggleT = 0; calm = 0; meterEl.hidden = false; hint('');
+    if(target.k.pts >= 900) toast(`伝説の${target.k.name}だ！！`, 'var(--warn)', 1.8);
+    else if(target.k.power >= 1.5) toast(`${target.k.name}だ！ 引きが強いぞ！`, 'var(--bad)', 1.6);
+    else toast('かかった！', 'var(--accent)');
+  } else if(state==='hooked'){
+    reeling = true;
+  }
+}
+cv.addEventListener('pointerdown', e=>{ e.preventDefault(); press(e.clientX, e.clientY); });
+addEventListener('pointerup', ()=>{ reeling=false; });
+addEventListener('pointercancel', ()=>{ reeling=false; });
+addEventListener('keydown', e=>{
+  if(e.code!=='Space' || e.repeat || state==='title' || state==='over') return;
+  e.preventDefault();
+  if(state==='hooked') reeling = true; else press(hook.x===TIP.x ? W/2 : hook.x, hook.x===TIP.x ? H*.6 : hook.y);
+});
+addEventListener('keyup', e=>{ if(e.code==='Space') reeling=false; });
+addEventListener('keydown', e=>{ if(e.code==='KeyS' && !e.repeat) useSpecial(); });
+$('spBtn').addEventListener('pointerdown', e=>{ e.stopPropagation(); });
+$('spBtn').addEventListener('click', ()=>useSpecial());
+let cutTimer = 0;
+function useSpecial(){
+  if(state!=='hooked' || SP.gauge < 100 || SP.cd > 0) return;
+  const r = rod(), fx = r.sp.fx;
+  SP.gauge = 0; SP.cd = r.sp.cd;  // 使ったあとはクールダウン
+  if(fx.reset) tension *= (1 - fx.reset);
+  if(fx.guard) SP.guard = fx.guard;
+  if(fx.stun)  SP.stun = fx.stun;
+  if(fx.wind)  SP.wind = fx.wind;
+  if(fx.mult)  SP.mult = fx.mult;
+  if(fx.yank){
+    const a = Math.atan2(TIP.y-hook.y, TIP.x-hook.x), d = Math.min(fx.yank, dist(hook,TIP));
+    hook.x += Math.cos(a)*d; hook.y = Math.max(SURF+2, hook.y + Math.sin(a)*d);
+  }
+  if(fx.land || hook.y <= SURF+2) SP.landing = true;
+  // 演出
+  SP.fx = 1.2; SP.fxColor = r.color === '#2b3440' ? '#9fb6d0' : r.color; SP.fxName = r.sp.name;
+  const c = $('cutin');
+  c.style.setProperty('--spc', SP.fxColor);
+  $('cutRod').textContent = r.name + 'の必殺技';
+  $('cutName').textContent = r.sp.name + '！';
+  $('cutDesc').textContent = r.sp.desc;
+  c.hidden = false; c.classList.remove('go'); void c.offsetWidth; c.classList.add('go');
+  cutTimer = 1.4;
+  for(let i=0;i<3;i++) ripples.push({x:hook.x, r:10+i*16, a:1});
+}
+$('start').onclick = startGame;
+$('again').onclick = startGame;
+
+// ---------- 更新 ----------
+function step(dt, t){
+  const playing = state!=='title' && state!=='over';
+
+  if(state==='cast'){
+    hook.t += dt;
+    const fly = .45;
+    if(hook.t < fly){
+      const u = hook.t/fly;
+      hook.x = hook.sx + (hook.tx-hook.sx)*u;
+      hook.y = hook.sy + (SURF-hook.sy)*u - Math.sin(u*Math.PI)*90;
+    } else {
+      if(!hook.splash){ hook.splash=true; ripples.push({x:hook.tx, r:4, a:1}); }
+      hook.x = hook.tx; hook.y = Math.min(hook.ty, Math.max(hook.y, SURF) + 150*dt);
+      if(hook.y >= hook.ty){ state='wait'; attractT = .6; hint('魚がくるのを待とう…'); }
+    }
+  }
+  else if(state==='wait'){
+    if(!target){
+      attractT -= dt;
+      if(attractT<=0){
+        attractT = .7;
+        let bestF=null, bd=280*rod().lure;
+        for(const f of fishes){ if(f.mode!=='swim'||f.flee>0) continue; const d=dist(f,hook); if(d<bd){bd=d;bestF=f;} }
+        if(bestF && Math.random()<Math.min(.95,.6*rod().lure)){ target=bestF; target.mode='seek'; }
+      }
+    } else if(target.mode==='nibble'){
+      if(nibbles===0){ nibbles = 1+Math.floor(rand(0,3)); nibbleT = rand(.5,.9); hint('ツンツン…まだ待って'); }
+      nibbleT -= dt;
+      if(nibbleT<=0){
+        hook.jig = 1; nibbles--;
+        if(nibbles<=0){ state='bite'; biteT = target.k.win + rod().win; hook.jig = 2.2; toast('！', 'var(--bad)', biteT); hint('今だ！タップ！'); }
+        else { nibbleT = rand(.45,.9); nibbles = Math.max(1,nibbles); }
+      }
+    }
+  }
+  else if(state==='bite'){
+    biteT -= dt;
+    target.x = hook.x; target.y = hook.y;
+    if(biteT<=0){ release(true); state='wait'; toast('にげられた…', 'var(--muted)'); hint('魚がくるのを待とう…'); }
+  }
+  else if(state==='hooked'){
+    const f = target, P = f.k.power * (ST().power||1) * (f.len/ (f.k.len[0]+f.k.len[1]) * 2);
+    struggleT -= dt;
+    if(struggleT<=0){ struggleT = rand(.6,1.6); burst = Math.random()<.35 ? rand(1.3,1.8) : rand(.5,1); escA += rand(-1.2,1.2); }
+    let pull = Math.min(6.5, P * burst);
+    // 必殺技の効果
+    SP.stun = Math.max(0, SP.stun-dt); SP.guard = Math.max(0, SP.guard-dt); SP.wind = Math.max(0, SP.wind-dt);
+    if(SP.stun>0) pull *= .12;
+    if(SP.cd<=0) SP.gauge = Math.min(100, SP.gauge + (reeling ? 9 : 4) * dt);
+    if(reeling){
+      let gain = (8 + pull*26) * rod().tension;
+      if(SP.wind>0) gain *= .2;
+      if(SP.guard>0) gain = 0;
+      tension += gain * dt;
+      let sp = Math.max(40, 120 - pull*25) * rod().reel;
+      if(SP.wind>0) sp *= 3;
+      const a = Math.atan2(TIP.y-hook.y, TIP.x-hook.x);
+      hook.x += Math.cos(a)*sp*dt; hook.y += Math.sin(a)*sp*dt;
+    } else {
+      tension -= Math.max(25, 60 - pull*6) * dt;
+      // 魚があばれている間は、指をはなしていても糸が引っぱられる（弱い竿ほどきつい）
+      if(burst > 1.25 && SP.guard<=0) tension += pull * 14 * rod().tension * dt;
+      const run = Math.min(pull, 2.6)*35;
+      hook.x += Math.cos(escA)*run*dt; hook.y += Math.sin(escA)*run*dt;
+    }
+    tension = Math.max(0, tension);
+    // 壁や底にぶつかったら向きを変える
+    if(hook.x<30||hook.x>W-30){ escA = Math.PI - escA; hook.x = clamp(hook.x,30,W-30); }
+    if(hook.y>H-50){ escA = -Math.abs(escA); hook.y = H-50; }
+    if(hook.y<SURF+4 && !reeling){ hook.y = SURF+4; escA = Math.abs(escA); }
+    if(SP.landing){ hook.y = SURF+1; SP.landing = false; }  // 必殺技で一気に水面まで
+    f.a += angDiff(escA, f.a)*.08;
+    f.x = hook.x; f.y = hook.y;
+    tbar.style.width = Math.min(100,tension)+'%';
+    tbar.style.background = tension>80 ? 'var(--bad)' : tension>55 ? 'var(--warn)' : 'var(--good)';
+    $('dist').textContent = Math.max(0, Math.round((hook.y-SURF)/10))+' m';
+    $('spbar').style.width = SP.gauge+'%';
+    const btn = $('spBtn'), ready = SP.gauge>=100 && SP.cd<=0;
+    const label = SP.cd>0 ? `クールダウン中 あと${Math.ceil(SP.cd)}秒` : ready ? `必殺技「${rod().sp.name}」` : 'ゲージをためよう';
+    btn.disabled = !ready; if(btn.textContent !== label) btn.textContent = label;
+    $('spbar').style.opacity = SP.cd>0 ? .35 : 1;
+    $('spName').textContent = SP.stun>0 ? 'しびれ中！' : SP.guard>0 ? '糸ガード中！' : SP.wind>0 ? 'つむじ風！' : SP.mult>1 ? `点数${SP.mult}倍！` : '';
+    if(tension>=100){
+      meterEl.hidden = true; release(true); state='reel'; toast('糸が切れた！', 'var(--bad)'); reeling=false;
+    } else if(hook.y <= SURF+2){
+      meterEl.hidden = true; state='lift'; f.mode='lift'; hook.t=0; hook.sx=hook.x; hook.sy=hook.y;
+      ripples.push({x:hook.x, r:6, a:1}); ripples.push({x:hook.x, r:18, a:.7});
+    }
+  }
+  else if(state==='lift'){
+    hook.t += dt; const u = Math.min(1, hook.t/.6);
+    hook.x = hook.sx + (TIP.x-hook.sx)*u; hook.y = hook.sy + (TIP.y+40-hook.sy)*u;
+    target.x = hook.x; target.y = hook.y; target.a += angDiff(-Math.PI/2, target.a)*.2;
+    if(u>=1){
+      const f = target, pts = Math.round(f.k.pts * f.len / ((f.k.len[0]+f.k.len[1])/2) * SP.mult * (ST().bonus||1));
+      if(SP.cd<=0) SP.gauge = Math.min(100, SP.gauge + 10);
+      score += pts; wallet += pts; stagePts += pts; saveShop(); saveStage(); caught.push({k:f.k, cm:f.cm});
+      catchEl.innerHTML = `<b>${f.k.name}</b><span>${f.cm}cm</span> <strong>+${pts}点</strong>${SP.mult>1?` <span>（必殺技で${SP.mult}倍）</span>`:''}`;
+      SP.mult = 1;
+      catchEl.classList.remove('hide'); catchTimer = 1.8;
+      fishes.splice(fishes.indexOf(f),1); target=null;
+      setTimeout(()=>{ if(state!=='title') spawnFish(); }, 1500);
+      state='idle'; resetHook(); hint('水の中をタップして、エサを投げよう');
+      checkStage();
+    }
+  }
+  else if(state==='reel'){
+    const a = Math.atan2(TIP.y-hook.y, TIP.x-hook.x), d = dist(hook,TIP);
+    const sp = 700*dt;
+    if(d<=sp){ resetHook(); state='idle'; hint('水の中をタップして、エサを投げよう'); }
+    else { hook.x += Math.cos(a)*sp; hook.y += Math.sin(a)*sp; }
+  }
+
+  hook.jig = Math.max(0, hook.jig - dt*5);
+  while(fishes.length > 0 && fishes.length < fishTarget()-2 && state!=='title') { spawnFish(); break; }
+
+  for(const b of bubbles) b.update(dt);
+  for(const f of fishes) f.update(dt, fishes);
+  for(const r of ripples){ r.r += 40*dt; r.a -= dt*1.2; }
+  for(let i=ripples.length-1;i>=0;i--) if(ripples[i].a<=0) ripples.splice(i,1);
+
+  if(toastTimer>0){ toastTimer-=dt; if(toastTimer<=0) toastEl.classList.add('hide'); }
+  if(catchTimer>0){ catchTimer-=dt; if(catchTimer<=0) catchEl.classList.add('hide'); }
+  if(cutTimer>0){ cutTimer-=dt; if(cutTimer<=0) $('cutin').hidden = true; }
+  SP.fx = Math.max(0, SP.fx - dt);
+  if(playing && state!=='clear') SP.cd = Math.max(0, SP.cd - dt);
+  if(playing) updateHud();
+}
+
+// ---------- 描画 ----------
+// ステージごとの飾り（星・氷・溶岩のつぶ・雲）
+function drawDeco(S, t){
+  if(S.deco==='stars'){
+    for(const d of deco){ ctx.globalAlpha = .4 + .6*Math.abs(Math.sin(t*d.s*2+d.ph));
+      ctx.fillStyle='#fff8d0'; ctx.beginPath(); ctx.arc(d.x, d.y*(SURF-12), d.r, 0, Math.PI*2); ctx.fill(); }
+    ctx.globalAlpha = 1;
+  } else if(S.deco==='clouds'){
+    ctx.fillStyle='rgba(255,255,255,.8)';
+    for(let i=0;i<5;i++){ const d=deco[i], x=((d.x + t*12*d.s) % (W+160)) - 80, y=12+d.y*(SURF-50);
+      for(const [ox,oy,r] of [[0,0,18],[18,-6,22],[38,0,17],[20,6,16]]){ ctx.beginPath(); ctx.arc(x+ox,y+oy,r*.9,0,Math.PI*2); ctx.fill(); } }
+  } else if(S.deco==='ice'){
+    ctx.fillStyle='rgba(240,250,255,.92)';
+    for(let i=0;i<6;i++){ const d=deco[i], x=((d.x + t*6*d.s) % (W+120)) - 60, w=40+d.r*30;
+      if(Math.abs(x-BOAT.x)<90) continue;
+      ctx.beginPath(); ctx.roundRect(x, SURF-6+Math.sin(t+d.ph)*1.5, w, 10, 4); ctx.fill();
+      ctx.fillStyle='rgba(200,230,245,.5)'; ctx.fillRect(x+4, SURF+4, w-8, 14); ctx.fillStyle='rgba(240,250,255,.92)'; }
+  } else if(S.deco==='lava'){
+    ctx.save(); ctx.globalCompositeOperation='lighter';
+    for(const d of deco){ const y = H - ((t*30*d.s + d.y*H) % (H-SURF));
+      ctx.fillStyle=`rgba(255,${120+d.s*80|0},40,${.25+.35*d.s})`; ctx.beginPath(); ctx.arc(d.x + Math.sin(t+d.ph)*6, y, d.r*1.6, 0, Math.PI*2); ctx.fill(); }
+    ctx.restore();
+  }
+}
+function drawScene(t){
+  // 空
+  const sky = ctx.createLinearGradient(0,0,0,SURF);
+  const S = ST(); sky.addColorStop(0,S.sky[0]); sky.addColorStop(1,S.sky[1]);
+  ctx.fillStyle=sky; ctx.fillRect(0,0,W,SURF);
+  // 水
+  const g = ctx.createLinearGradient(0,SURF,0,H);
+  g.addColorStop(0,S.water[0]); g.addColorStop(.45,S.water[1]); g.addColorStop(1,S.water[2]);
+  ctx.fillStyle=g; ctx.fillRect(0,SURF,W,H-SURF);
+  ctx.save(); ctx.globalCompositeOperation='lighter';
+  for(let i=0;i<6;i++){
+    const x = (i+.5)*W/6 + Math.sin(t*.3+i*1.7)*40;
+    const lg = ctx.createLinearGradient(0,SURF,0,H*.85);
+    lg.addColorStop(0,'rgba(180,240,230,.10)'); lg.addColorStop(1,'rgba(180,240,230,0)');
+    ctx.fillStyle=lg; ctx.beginPath();
+    ctx.moveTo(x-20,SURF); ctx.lineTo(x+30,SURF); ctx.lineTo(x+120+Math.sin(t*.2+i)*30,H*.85); ctx.lineTo(x+20,H*.85); ctx.fill();
+  }
+  ctx.restore();
+  drawDeco(S, t);
+  // 水面の波
+  ctx.fillStyle=S.wave;
+  ctx.beginPath(); ctx.moveTo(0,SURF);
+  for(let x=0;x<=W;x+=12) ctx.lineTo(x, SURF + Math.sin(x*.03+t*1.6)*2.5);
+  ctx.lineTo(W,SURF+10); ctx.lineTo(0,SURF+10); ctx.fill();
+  ctx.fillStyle='rgba(230,255,250,.35)';
+  for(let x=0;x<W;x+=28){ ctx.fillRect(x, SURF + Math.sin(x*.03+t*1.6)*2.5 - 1, 12, 2); }
+  // 波紋
+  for(const r of ripples){ ctx.strokeStyle=`rgba(230,255,250,${r.a*.7})`; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.ellipse(r.x, SURF+2, r.r, r.r*.28, 0, 0, Math.PI*2); ctx.stroke(); }
+  // 砂
+  ctx.fillStyle=S.sand; ctx.beginPath(); ctx.moveTo(0,H);
+  for(let x=0;x<=W;x+=20) ctx.lineTo(x, H-26-Math.sin(x*.012)*8-Math.sin(x*.05)*3);
+  ctx.lineTo(W,H); ctx.fill();
+  ctx.fillStyle='rgba(4,32,43,.35)'; ctx.fillRect(0,H-40,W,40);
+  for(const w of weeds){
+    ctx.strokeStyle=S.weed[w.c]; ctx.lineWidth=w.w; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(w.x,H-20);
+    for(let i=1;i<=8;i++) ctx.lineTo(w.x + Math.sin(t*1.1+w.ph+i*.5)*i*2.2, H-20 - w.h*i/8);
+    ctx.stroke();
+  }
+}
+function drawBoat(t){
+  const bob = Math.sin(t*1.4)*2, x = BOAT.x, y = BOAT.y + bob;
+  // 竿
+  ctx.strokeStyle=rod().color; ctx.lineWidth=4; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(x+14, y-34); ctx.quadraticCurveTo(x+60, y-60, TIP.x, TIP.y + bob + (state==='hooked'? tension*.12:0)); ctx.stroke();
+  // 人
+  ctx.fillStyle='#2b4a5a';
+  ctx.beginPath(); ctx.roundRect(x-12, y-44, 22, 30, 8); ctx.fill();
+  ctx.fillStyle='#f0c9a0'; ctx.beginPath(); ctx.arc(x-1, y-54, 10, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle='#e8a33d'; ctx.beginPath(); ctx.ellipse(x-1, y-60, 15, 5, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x-1, y-61, 9, Math.PI, 0); ctx.fill();
+  // 船
+  ctx.fillStyle='#8a4b2a';
+  ctx.beginPath(); ctx.moveTo(x-62, y-18); ctx.lineTo(x+58, y-18); ctx.lineTo(x+40, y+6); ctx.lineTo(x-46, y+6); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#b8683c'; ctx.fillRect(x-60, y-20, 118, 5);
+}
+function drawLine(t){
+  if(state==='title'||state==='over') return;
+  const bob = Math.sin(t*1.4)*2;
+  const tip = {x:TIP.x, y:TIP.y + bob + (state==='hooked'? tension*.12:0)};
+  let hx = hook.x, hy = hook.y;
+  if(hook.jig>0){ hx += Math.sin(t*60)*hook.jig*2; hy += hook.jig*3; }
+  const slack = state==='hooked' ? (1 - Math.min(1,tension/100))*40 : state==='cast'?0 : 30;
+  ctx.strokeStyle = state==='hooked' && tension>80 ? 'rgba(255,140,120,.95)' : 'rgba(240,250,248,.8)';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(tip.x, tip.y);
+  ctx.quadraticCurveTo((tip.x+hx)/2, (tip.y+hy)/2 + slack, hx, hy); ctx.stroke();
+  if(state!=='hooked' && state!=='lift'){
+    // 針とエサ
+    ctx.strokeStyle='#cfd8dc'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(hx,hy); ctx.lineTo(hx,hy+10); ctx.arc(hx-4,hy+10,4,0,Math.PI*.9); ctx.stroke();
+    ctx.fillStyle='#e67a8c';
+    for(let i=0;i<4;i++){ ctx.beginPath(); ctx.arc(hx-2+Math.sin(t*5+i)*2, hy+6+i*3, 2.6, 0, Math.PI*2); ctx.fill(); }
+  }
+  if(state==='bite'){
+    ctx.fillStyle='#ff6a5a'; ctx.font='900 38px "Zen Maru Gothic", sans-serif'; ctx.textAlign='center';
+    ctx.fillText('！', hx, hy - 30 - Math.abs(Math.sin(t*14))*6);
+  }
+}
+
+function drawSpecial(t){
+  if(state!=='hooked' && state!=='lift') return;
+  const x = hook.x, y = hook.y;
+  // 発動したしゅんかんの光
+  if(SP.fx>0){
+    const u = 1 - SP.fx/1.2;
+    ctx.save(); ctx.globalCompositeOperation='lighter';
+    ctx.strokeStyle = SP.fxColor; ctx.globalAlpha = 1-u; ctx.lineWidth = 6*(1-u)+1;
+    ctx.beginPath(); ctx.arc(x,y, 20+u*220, 0, Math.PI*2); ctx.stroke();
+    for(let i=0;i<14;i++){ const a=i/14*Math.PI*2 + u*2, r1=30+u*160, r2=r1+40;
+      ctx.beginPath(); ctx.moveTo(x+Math.cos(a)*r1, y+Math.sin(a)*r1); ctx.lineTo(x+Math.cos(a)*r2, y+Math.sin(a)*r2); ctx.stroke(); }
+    ctx.restore();
+  }
+  if(state!=='hooked') return;
+  // しびれ中：魚のまわりを星が回る
+  if(SP.stun>0){
+    ctx.fillStyle='#ffe066'; ctx.font='bold 20px sans-serif'; ctx.textAlign='center';
+    for(let i=0;i<3;i++){ const a=t*5+i*2.1; ctx.fillText('★', x+Math.cos(a)*34, y-26+Math.sin(a)*10); }
+  }
+  // 糸ガード中：糸のまわりに光の輪
+  if(SP.guard>0){
+    ctx.strokeStyle='rgba(180,255,230,.8)'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.arc(x,y, 26+Math.sin(t*10)*4, 0, Math.PI*2); ctx.stroke();
+  }
+  // つむじ風：うずまき
+  if(SP.wind>0){
+    ctx.strokeStyle='rgba(200,255,245,.7)'; ctx.lineWidth=2;
+    for(let i=0;i<3;i++){ ctx.beginPath(); ctx.arc(x,y, 18+i*12, t*12+i, t*12+i+Math.PI*1.2); ctx.stroke(); }
+  }
+}
+function loop(now){
+  const dt = Math.min(.05,(now-lastTime)/1000); lastTime = now;
+  const t = now/1000;
+  step(dt, t);
+  drawScene(t);
+  for(const b of bubbles) b.draw();
+  const sorted = fishes.slice().sort((a,b)=>a.len-b.len);
+  for(const f of sorted) if(f.mode!=='lift') f.draw();
+  const v = ctx.createRadialGradient(W/2,H*.6,Math.min(W,H)*.3,W/2,H*.6,Math.max(W,H)*.75);
+  v.addColorStop(0,'rgba(0,0,0,0)'); v.addColorStop(1,'rgba(0,10,15,.4)');
+  ctx.fillStyle=v; ctx.fillRect(0,SURF,W,H-SURF);
+  drawBoat(t);
+  drawLine(t);
+  drawSpecial(t);
+  for(const f of fishes) if(f.mode==='lift') f.draw();
+  requestAnimationFrame(loop);
+}
+
+populate(); resetHook();
+renderZukan($('zukanTitle'));
+$('bestTitle').textContent = wallet ? `いまのおこづかい ${wallet}点` : '';
+$('score').textContent = wallet;
+updateStageHud();
+
+// ---------- つりざお屋 ----------
+let shopFrom = 'title';
+function stars(v){ return '★'.repeat(v)+'☆'.repeat(5-v); }
+function renderShop(){
+  $('walletS').textContent = wallet;
+  $('shopList').innerHTML = RODS.map((r,i)=>{
+    const have = owned.includes(r.id), on = r.id===rodId;
+    let btn;
+    if(on) btn = `<button type="button" disabled>使用中</button>`;
+    else if(have) btn = `<button type="button" class="ghost" data-use="${r.id}">つかう</button>`;
+    else btn = `<button type="button" data-buy="${r.id}" ${wallet<r.price?'disabled':''}>${r.price}点</button>`;
+    return `<div class="rod ${on?'on':''}"><span class="sw" style="background:${r.color}"></span>
+      <b>${r.name}</b>${btn}
+      <span class="stats"><span>Lv.${i+1}</span><span>巻く速さ ${r.reel.toFixed(1)}倍</span></span>
+      <small>${r.note}</small>
+      <small>必殺技：<b style="font-size:12px;color:var(--accent)">${r.sp.name}</b>（${r.sp.desc}・クールダウン${r.sp.cd}秒）</small></div>`;
+  }).join('');
+}
+$('shopList').addEventListener('click', e=>{
+  const b = e.target.closest('button'); if(!b) return;
+  if(b.dataset.buy){
+    const r = RODS.find(x=>x.id===b.dataset.buy);
+    if(wallet < r.price) return;
+    wallet -= r.price; owned.push(r.id); rodId = r.id; saveShop();
+    toast(`${r.name}を買った！`, 'var(--accent)', 1.4);
+  } else if(b.dataset.use){ rodId = b.dataset.use; saveShop(); }
+  renderShop(); $('rodHud').textContent = rod().name; $('score').textContent = wallet;
+});
+function openShop(from){
+  shopFrom = from; reeling = false; renderShop();
+  $('title').hidden = true; $('result').hidden = true; $('shopView').hidden = false;
+  $('shopList').scrollTop = 0;
+}
+$('shopBtn1').onclick = ()=>openShop('title');
+$('shopBtn2').onclick = ()=>openShop('result');
+$('shopBtn3').onclick = ()=>openShop(state==='title' ? 'title' : 'play');
+$('shopClose').onclick = ()=>{
+  $('shopView').hidden = true;
+  if(shopFrom==='result'){ $('walletR').textContent = wallet; $('result').hidden = false; }
+  else if(shopFrom==='title'){ $('bestTitle').textContent = `いまのおこづかい ${wallet}点`; $('title').hidden = false; }
+  updateHud();
+};
+$('rodHud').textContent = rod().name;
+requestAnimationFrame(loop);
+</script>
